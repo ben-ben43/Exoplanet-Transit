@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ExoPlanet Transit — AI Discovery & Light Curve Analysis</title>
+    <meta name="description" content="Autonomous exoplanet detection, Box-Fitting Least Squares periodogram, stellar detrending, and Machine Learning vetting dashboard for NASA Kepler data.">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Plotly.js for Scientific Charts -->
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="dark-theme">
+    <!-- Cosmic Background Gradients -->
+    <div class="space-bg">
+        <div class="nebula nebula-1"></div>
+        <div class="nebula nebula-2"></div>
+        <div class="stars-overlay"></div>
+    </div>
+
+    <div class="app-container">
+        <!-- Top Navigation Header -->
+        <header class="app-header glass-card">
+            <div class="brand">
+                <div class="brand-icon">
+                    <span class="planet-glow"></span>
+                    <span class="orbit-ring"></span>
+                </div>
+                <div class="brand-text">
+                    <h1>ExoPlanet<span class="text-gradient">Transit</span></h1>
+                    <p class="tagline">NASA Kepler Photometry & ML Discovery Engine</p>
+                </div>
+            </div>
+            
+            <div class="header-badges">
+                <div class="status-pill" id="mast-status">
+                    <span class="indicator-dot pulse-green"></span>
+                    <span>NASA MAST API</span>
+                </div>
+                <div class="status-pill" id="model-status">
+                    <span class="indicator-dot pulse-blue"></span>
+                    <span>Random Forest AI Ready</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <div class="dashboard-layout">
+            <!-- Sidebar Controls -->
+            <aside class="sidebar glass-card">
+                <div class="sidebar-section">
+                    <h2 class="section-title">🔭 Target Selection</h2>
+                    
+                    <div class="form-group">
+                        <label for="target-select">Catalog Preset Targets</label>
+                        <select id="target-select" class="custom-select">
+                            <option value="" disabled selected>Loading targets...</option>
+                        </select>
+                    </div>
+
+                    <div class="divider"><span>OR QUERY ARCHIVE</span></div>
+
+                    <div class="form-group">
+                        <label for="kic-input">Kepler KIC Identifier</label>
+                        <div class="input-with-button">
+                            <input type="text" id="kic-input" placeholder="e.g. 11446443 or kplr011446443" class="custom-input">
+                            <button id="fetch-mast-btn" class="btn-secondary" title="Fetch FITS from NASA MAST">
+                                <span class="btn-text">Fetch</span>
+                                <span class="loader-spinner hidden"></span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h2 class="section-title">⚙️ Pipeline Hyperparameters</h2>
+                    
+                    <div class="form-group">
+                        <div class="slider-header">
+                            <label for="window-slider">Detrending Window</label>
+                            <span id="window-val" class="slider-badge">2.0 days</span>
+                        </div>
+                        <input type="range" id="window-slider" min="0.5" max="10.0" step="0.5" value="2.0" class="custom-slider">
+                        <span class="helper-text">Stellar baseline rolling median scale</span>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group half-width">
+                            <label for="min-p-input">Min Period (d)</label>
+                            <input type="number" id="min-p-input" value="0.5" min="0.1" step="0.1" class="custom-input">
+                        </div>
+                        <div class="form-group half-width">
+                            <label for="max-p-input">Max Period (d)</label>
+                            <input type="number" id="max-p-input" value="20.0" min="1.0" step="1.0" class="custom-input">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sidebar-actions">
+                    <button id="analyze-btn" class="btn-primary">
+                        <span class="btn-icon">⚡</span>
+                        <span class="btn-text">Execute Autonomous Pipeline</span>
+                        <span class="loader-spinner hidden"></span>
+                    </button>
+                </div>
+
+                <!-- Feature Importance Mini Panel -->
+                <div class="sidebar-section feature-importance-section" id="feat-importance-box">
+                    <h3 class="section-subtitle">🧠 ML Feature Importance</h3>
+                    <div id="importance-bars" class="importance-list">
+                        <!-- Populated dynamically via JS -->
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Main Interactive Display -->
+            <main class="main-content">
+                <!-- Hero Classification Banner -->
+                <section class="verdict-banner glass-card" id="verdict-card">
+                    <div class="verdict-main">
+                        <div class="verdict-badge-wrapper">
+                            <span class="verdict-icon" id="verdict-icon">🪐</span>
+                            <div class="verdict-text-block">
+                                <span class="verdict-subtitle">AUTOMATED ML CLASSIFICATION</span>
+                                <h2 class="verdict-title" id="verdict-title">Select a Target to Analyze</h2>
+                                <p class="verdict-description" id="verdict-desc">Choose a Kepler observation file and click execute to trigger autonomous vetting.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="verdict-stats">
+                        <div class="confidence-gauge">
+                            <div class="gauge-circle" id="gauge-circle">
+                                <span class="gauge-value" id="gauge-val">--%</span>
+                                <span class="gauge-label">AI Confidence</span>
+                            </div>
+                        </div>
+
+                        <div class="prob-breakdown">
+                            <div class="prob-row">
+                                <div class="prob-labels">
+                                    <span>Confirmed Planet</span>
+                                    <span id="prob-planet-text">--%</span>
+                                </div>
+                                <div class="prob-bar-track">
+                                    <div class="prob-bar planet-bar" id="prob-planet-bar" style="width: 0%;"></div>
+                                </div>
+                            </div>
+                            <div class="prob-row">
+                                <div class="prob-labels">
+                                    <span>False Positive / Binary</span>
+                                    <span id="prob-binary-text">--%</span>
+                                </div>
+                                <div class="prob-bar-track">
+                                    <div class="prob-bar binary-bar" id="prob-binary-bar" style="width: 0%;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Astrophysical Vetting Matrix & Orbit Visualizer -->
+                <section class="mid-grid">
+                    <!-- Vetting Matrix Grid -->
+                    <div class="vetting-matrix glass-card">
+                        <h3 class="card-heading">🔬 Astrophysical Vetting Matrix</h3>
+                        <div class="metrics-grid">
+                            <div class="metric-card" id="metric-period">
+                                <span class="metric-label">Orbital Period (P)</span>
+                                <span class="metric-val" id="val-period">-- days</span>
+                                <span class="metric-sub" id="sub-epoch">T₀ = --</span>
+                            </div>
+
+                            <div class="metric-card" id="metric-depth">
+                                <span class="metric-label">Transit Depth</span>
+                                <span class="metric-val" id="val-depth">--%</span>
+                                <span class="metric-sub" id="sub-depth">Light blocked</span>
+                            </div>
+
+                            <div class="metric-card" id="metric-snr">
+                                <span class="metric-label">Signal-to-Noise (SNR)</span>
+                                <span class="metric-val" id="val-snr">--</span>
+                                <span class="metric-sub" id="sub-snr">Detection significance</span>
+                            </div>
+
+                            <div class="metric-card" id="metric-odd-even">
+                                <span class="metric-label">Odd-Even Mismatch</span>
+                                <span class="metric-val" id="val-odd-even">--%</span>
+                                <span class="metric-badge" id="badge-odd-even">--</span>
+                            </div>
+
+                            <div class="metric-card" id="metric-secondary">
+                                <span class="metric-label">Secondary Eclipse</span>
+                                <span class="metric-val" id="val-secondary">--%</span>
+                                <span class="metric-badge" id="badge-secondary">--</span>
+                            </div>
+
+                            <div class="metric-card" id="metric-flatness">
+                                <span class="metric-label">Transit Flatness</span>
+                                <span class="metric-val" id="val-flatness">--</span>
+                                <span class="metric-sub" id="sub-flatness">U vs V profile</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Orbit Simulation Canvas -->
+                    <div class="orbit-sim-card glass-card">
+                        <div class="orbit-sim-header">
+                            <h3 class="card-heading">🌌 Cosmic Orbit Simulator</h3>
+                            <div class="sim-controls">
+                                <button id="sim-play-btn" class="sim-btn" title="Play/Pause Transit Animation">⏸️ Pause</button>
+                                <button id="sim-reset-btn" class="sim-btn" title="Reset Orbit Phase">↺ Reset</button>
+                            </div>
+                        </div>
+                        <div class="canvas-container">
+                            <canvas id="orbit-canvas" width="460" height="230"></canvas>
+                        </div>
+                        <div class="phase-tracker">
+                            <span class="tracker-label">Orbital Phase:</span>
+                            <span class="tracker-val" id="sim-phase-val">0.000</span>
+                            <div class="tracker-status" id="sim-status-pill">In Transit</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Diagnostic Plots Panel -->
+                <section class="charts-section glass-card">
+                    <div class="charts-nav">
+                        <div class="tabs-list" role="tablist">
+                            <button class="tab-btn active" data-tab="tab-folded" id="tab-folded-btn">Phase 4: Folded Transit</button>
+                            <button class="tab-btn" data-tab="tab-bls" id="tab-bls-btn">Phase 3: BLS Periodogram</button>
+                            <button class="tab-btn" data-tab="tab-detrended" id="tab-detrended-btn">Phase 2: Detrended Flux</button>
+                            <button class="tab-btn" data-tab="tab-raw" id="tab-raw-btn">Phase 1: Raw Telemetry</button>
+                        </div>
+                        <div class="chart-options">
+                            <button id="reset-zoom-btn" class="btn-text-only" title="Reset Chart Zoom">⟲ Reset Zoom</button>
+                        </div>
+                    </div>
+
+                    <div class="tab-contents">
+                        <div class="tab-pane active" id="tab-folded">
+                            <div id="chart-folded" class="plotly-chart"></div>
+                        </div>
+                        <div class="tab-pane" id="tab-bls">
+                            <div id="chart-bls" class="plotly-chart"></div>
+                        </div>
+                        <div class="tab-pane" id="tab-detrended">
+                            <div id="chart-detrended" class="plotly-chart"></div>
+                        </div>
+                        <div class="tab-pane" id="tab-raw">
+                            <div id="chart-raw" class="plotly-chart"></div>
+                        </div>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast hidden">
+        <span class="toast-icon">ℹ️</span>
+        <span class="toast-message" id="toast-msg">Notification</span>
+    </div>
+
+    <!-- Application Scripts -->
+    <script src="/static/js/simulation.js"></script>
+    <script src="/static/js/charts.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
